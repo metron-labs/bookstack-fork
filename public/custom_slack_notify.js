@@ -5,10 +5,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
   notifyButton.addEventListener("click", function (event) {
     event.preventDefault();
+    notifyButton.innerHTML =
+      '<i class="fa fa-spinner fa-spin"></i> Completing...';
 
     // Get data from the button's data attributes
-    const pageName = notifyButton.getAttribute("data-page-name");
-    const pageUrl = notifyButton.getAttribute("data-page-url");
+    const pageName = document.title;
+    const pageUrl = window.location.href;
     const csrfToken = document.querySelector('meta[name="token"]').content;
 
     notifyButton.disabled = true;
@@ -32,11 +34,13 @@ document.addEventListener("DOMContentLoaded", function () {
         } else {
           alert("Error sending notification.");
           notifyButton.disabled = false;
+          notifyButton.innerHTML = "Mark as Complete";
         }
       })
       .catch((error) => {
         console.error("Error:", error);
         notifyButton.disabled = false;
+        notifyButton.innerHTML = "Mark as Complete";
       });
   });
 });
