@@ -4,7 +4,6 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
-// Use 'app_boot' instead of 'routes_register' if the previous one failed
 BookStack\Facades\Theme::listen('app_boot', function () {
     
     Route::post('/ajax/training-complete', function (Request $request) {

@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", function () {
       .then((data) => {
         if (data.status === "ok") {
           alert("Chapter successfully completed!");
-          notifyButton.innerHTML = "Completed"; // Optional: change button text
+          notifyButton.innerHTML = "Completed";
         } else {
           alert("Error sending notification.");
           notifyButton.disabled = false;
