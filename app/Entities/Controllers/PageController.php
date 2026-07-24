@@ -162,7 +162,7 @@ class PageController extends Controller
 
         $isCompleted = false;
         if (auth()->check()) {
-        $isCompleted = \DB::table('page_completions')
+            $isCompleted = \DB::table('page_completions')
             ->where('user_id', auth()->id())
             ->where('page_id', $page->id)
             ->exists();

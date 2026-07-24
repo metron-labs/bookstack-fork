@@ -21,8 +21,8 @@ return new class extends Migration {
             $table->unique(['user_id', 'page_id']);
         });
     }
-         
-    
+
+
     /**
      * Reverse the migrations.
      *

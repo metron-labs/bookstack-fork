@@ -5,7 +5,11 @@
 
 import type {Config} from 'jest';
 import {pathsToModuleNameMapper} from "ts-jest";
-import { compilerOptions }  from './tsconfig.json';
+import path from 'path';
+import fs from 'fs';
+const tsconfigPath = path.resolve(process.cwd(), 'tsconfig.json');
+const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf-8'));
+const compilerOptions = tsconfig.compilerOptions;
 
 const config: Config = {
   // All imported modules in your tests should be mocked automatically
