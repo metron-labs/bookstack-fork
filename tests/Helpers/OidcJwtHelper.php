@@ -20,6 +20,11 @@ class OidcJwtHelper
         return 'xxyyzz.aaa.bbccdd.123';
     }
 
+    public static function defaultTokenTime(): int
+    {
+        return 1609459200;
+    }
+
     public static function defaultPayload(): array
     {
         return [
@@ -29,13 +34,13 @@ class OidcJwtHelper
             'ver'                => 1,
             'iss'                => static::defaultIssuer(),
             'aud'                => static::defaultClientId(),
-            'iat'                => time(),
-            'exp'                => time() + 720,
+            'iat'                => static::defaultTokenTime(),
+            'exp'                => static::defaultTokenTime() + 720,
             'jti'                => 'ID.AaaBBBbbCCCcccDDddddddEEEeeeeee',
             'amr'                => ['pwd'],
             'idp'                => 'fghfghgfh546456dfgdfg',
             'preferred_username' => 'xXBazzaXx',
-            'auth_time'          => time(),
+            'auth_time'          => static::defaultTokenTime(),
             'at_hash'            => 'sT4jbsdSGy9w12pq3iNYDA',
         ];
     }
