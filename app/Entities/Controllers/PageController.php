@@ -145,6 +145,14 @@ class PageController extends Controller
         View::incrementFor($page);
         $this->setPageTitle($page->getShortName());
 
+        $isCompleted = false;
+        if (auth()->check()) {
+            $isCompleted = \DB::table('page_completions')
+            ->where('user_id', auth()->id())
+            ->where('page_id', $page->id)
+            ->exists();
+        }
+
         return view('pages.show', [
             'page'            => $page,
             'book'            => $page->book,
@@ -156,6 +164,7 @@ class PageController extends Controller
             'next'            => $nextPreviousLocator->getNext(),
             'previous'        => $nextPreviousLocator->getPrevious(),
             'referenceCount'  => $this->referenceFetcher->getReferenceCountToEntity($page),
+            'isCompleted' => $isCompleted,
         ]);
     }
 
