@@ -42,27 +42,21 @@ class OidcJwtHelper
 
     public static function idToken($payloadOverrides = [], $headerOverrides = []): string
     {
-        static $cache = [];
-        $cacheKey = serialize([$payloadOverrides, $headerOverrides]);
+        $payload = array_merge(static::defaultPayload(), $payloadOverrides);
+        $header = array_merge([
+            'kid' => 'xyz456',
+            'alg' => 'RS256',
+        ], $headerOverrides);
 
-        if (!isset($cache[$cacheKey])) {
-            $payload = array_merge(static::defaultPayload(), $payloadOverrides);
-            $header = array_merge([
-                'kid' => 'xyz456',
-                'alg' => 'RS256',
-            ], $headerOverrides);
+        $top = implode('.', [
+            static::base64UrlEncode(json_encode($header)),
+            static::base64UrlEncode(json_encode($payload)),
+        ]);
 
-            $top = implode('.', [
-                static::base64UrlEncode(json_encode($header)),
-                static::base64UrlEncode(json_encode($payload)),
-            ]);
+        $privateKey = static::privateKeyInstance();
+        $signature = $privateKey->sign($top);
 
-            $privateKey = static::privateKeyInstance();
-            $signature = $privateKey->sign($top);
-            $cache[$cacheKey] = $top . '.' . static::base64UrlEncode($signature);
-        }
-
-        return $cache[$cacheKey];
+        return $top . '.' . static::base64UrlEncode($signature);
     }
 
     public static function privateKeyInstance()
