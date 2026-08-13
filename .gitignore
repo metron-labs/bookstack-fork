@@ -2,15 +2,16 @@
 /node_modules
 /.vscode
 /composer
+/coverage
 Homestead.yaml
 .env
 .idea
 npm-debug.log
 yarn-error.log
-/public/dist/*.map
+/public/dist
 /public/plugins
-/public/css/*.map
-/public/js/*.map
+/public/css
+/public/js
 /public/bower
 /public/build/
 /public/favicon.ico
@@ -31,3 +32,4 @@ webpack-stats.json
 phpstan.neon
 esbuild-meta.json
 .phpactor.json
+/*.zip
