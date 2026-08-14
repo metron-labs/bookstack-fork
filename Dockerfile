@@ -1,4 +1,13 @@
 # syntax=docker/dockerfile:1
+
+# --- STAGE 1: Build Frontend Assets (CSS / JS) ---
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app
+COPY . .
+RUN npm ci || npm install
+RUN npm run build
+
+# --- STAGE 2: Production Base Image ---
 FROM ghcr.io/linuxserver/baseimage-alpine-nginx:3.23
 
 # set version label
@@ -25,13 +34,16 @@ RUN \
     ttf-freefont && \
     echo "**** configure php-fpm to pass env vars ****" && \
     sed -E -i 's/^;?clear_env ?=.*$/clear_env = no/g' /etc/php85/php-fpm.d/www.conf && \
-    if ! grep -qxF 'clear_env = no' /etc/php85/php-fpm.d/www.conf; then echo 'clear_env = no' >> /etc/php85/php-fpm.d/www.conf; fi && \
+    if ! grep -qxF 'clear_env = no' /etc/php85/php-fpm.d/www.conf; then echo 'clear_env = no' >> /etc/php85/php-fpm.conf; fi && \
     echo "env[PATH] = /usr/local/bin:/usr/bin:/bin" >> /etc/php85/php-fpm.conf && \
     echo "**** preparing application directory ****" && \
     mkdir -p /app/www
 
-# --- CRITICAL CHANGE: Copy files before running composer ---
+# Copy application source files
 COPY . /app/www/
+
+# Copy compiled CSS/JS assets from STAGE 1
+COPY --from=frontend-builder /app/public/dist /app/www/public/dist
 
 RUN \
     echo "**** install composer dependencies ****" && \
@@ -50,9 +62,6 @@ RUN \
     /tmp/* \
     $HOME/.cache \
     $HOME/.composer
-
-# copy linuxserver init scripts (if you have them in a root/ folder)
-# COPY root/ /
 
 # Set ownership to the linuxserver default user
 RUN chown -R abc:abc /app/www
