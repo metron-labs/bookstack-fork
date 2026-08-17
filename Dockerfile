@@ -5,7 +5,7 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /app
 COPY . .
 RUN npm ci || npm install
-RUN npm run build
+RUN npm run production
 
 # --- STAGE 2: Production Base Image ---
 FROM ghcr.io/linuxserver/baseimage-alpine-nginx:3.23
@@ -62,6 +62,8 @@ RUN \
     /tmp/* \
     $HOME/.cache \
     $HOME/.composer
+
+COPY ./themes /app/www/themes
 
 # Set ownership to the linuxserver default user
 RUN chown -R abc:abc /app/www
