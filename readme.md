@@ -164,3 +164,30 @@ Note: This is not an exhaustive list of all libraries and projects that would be
 * [PHPStan](https://phpstan.org/) & [Larastan](https://github.com/nunomaduro/larastan) - _[MIT](https://github.com/phpstan/phpstan/blob/master/LICENSE) and [MIT](https://github.com/nunomaduro/larastan/blob/master/LICENSE.md)_
 * [PHP_CodeSniffer](https://github.com/squizlabs/PHP_CodeSniffer) - _[BSD 3-Clause](https://github.com/squizlabs/PHP_CodeSniffer/blob/master/licence.txt)_
 * [JakeArchibald/IDB-Keyval](https://github.com/jakearchibald/idb-keyval) - _[Apache-2.0](https://github.com/jakearchibald/idb-keyval/blob/main/LICENCE)_
+
+
+
+## Deployment & Environment Configuration
+
+### Updating Environment Variables (`.env`)
+The application loads environment variables at runtime from the persistent container volume.
+
+1. Open the production `.env` file on the host server:
+   ```bash
+   nano ~/bookstack-deployment/[kb-int.metronlabs.com/bookstack_app_data/www/.env](https://kb-int.metronlabs.com/bookstack_app_data/www/.env)
+
+### Deployment Workflow
+To deploy updates to the BookStack container, use the following commands:
+
+1. **Navigate to Code Repository & Fetch Latest Changes:**:
+  ```cd ~/bookstack-fork &&  git pull```
+
+2. **Build Same Docker Image**:
+   ```docker build -t bookstack-app:latest .``` 
+
+3. **Navigate to Deployment Directory & Recreate Containers**:
+   ```cd ~/bookstack-deployment/[kb-int.metronlabs.com](https://kb-int.metronlabs.com) && docker compose up -d``` 
+
+
+
+   
