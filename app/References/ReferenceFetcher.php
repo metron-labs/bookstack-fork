@@ -20,10 +20,10 @@ class ReferenceFetcher
      * Query and return the references pointing to the given entity.
      * Loads the commonly required relations while taking permissions into account.
      */
-    public function getReferencesToEntity(Entity $entity): Collection
+    public function getReferencesToEntity(Entity $entity, bool $withContents = false): Collection
     {
         $references = $this->queryReferencesToEntity($entity)->get();
-        $this->mixedEntityListLoader->loadIntoRelations($references->all(), 'from');
+        $this->mixedEntityListLoader->loadIntoRelations($references->all(), 'from', false, $withContents);
 
         return $references;
     }
@@ -41,7 +41,8 @@ class ReferenceFetcher
     {
         $baseQuery = Reference::query()
             ->where('to_type', '=', $entity->getMorphClass())
-            ->where('to_id', '=', $entity->id);
+            ->where('to_id', '=', $entity->id)
+            ->whereHas('from');
 
         return $this->permissions->restrictEntityRelationQuery(
             $baseQuery,

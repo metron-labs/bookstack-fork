@@ -10,6 +10,7 @@ return [
 
     // Auth
     'error_user_exists_different_creds' => 'Lietotājs ar epastu :email bet ar citiem piekļuves datiem jau eksistē.',
+    'auth_pre_register_theme_prevention' => 'Lietotāja kontu nevar reģistrēt ar norādītajām detaļām',
     'email_already_confirmed' => 'Epasts jau ir apstiprināts, mēģini ielogoties.',
     'email_confirmation_invalid' => 'Šis apstiprinājuma žetons nav derīgs vai jau ir izmantots. Lūdzu, mēģiniet reģistrēties vēlreiz.',
     'email_confirmation_expired' => 'Apstiprinājuma žetona derīguma termiņš ir beidzies. Ir nosūtīts jauns apstiprinājuma e-pasts.',
@@ -23,7 +24,6 @@ return [
     'saml_invalid_response_id' => 'Ārējās autentifikācijas sistēmas pieprasījums neatpazīst procesu, kuru sākusi šī lietojumprogramma. Pārvietojoties atpakaļ pēc pieteikšanās var rasties šāda problēma.',
     'saml_fail_authed' => 'Piekļuve ar :system neizdevās, sistēma nepieļāva veiksmīgu autorizāciju',
     'oidc_already_logged_in' => 'Jau esat ielogojies',
-    'oidc_user_not_registered' => 'Lietotājs :name nav reģistrēts un automātiska reģistrācija ir izslēgta',
     'oidc_no_email_address' => 'Ārējās autentifikācijas sistēmas sniegtajos datos nevarēja atrast šī lietotāja e-pasta adresi',
     'oidc_fail_authed' => 'Piekļuve ar :system neizdevās, sistēma nepieļāva veiksmīgu autorizāciju',
     'social_no_action_defined' => 'Darbības nav definētas',
@@ -37,6 +37,7 @@ return [
     'social_driver_not_found' => 'Sociālā tīkla savienojums nav atrasts',
     'social_driver_not_configured' => 'Jūsu :socialAccount sociālie iestatījumi nav uzstādīti pareizi.',
     'invite_token_expired' => 'Šī uzaicinājuma saite ir novecojusi. Tā vietā jūs varat mēģināt atiestatīt sava konta paroli.',
+    'login_user_not_found' => 'Šai darbībai netika atrasts lietotājs.',
 
     // System
     'path_not_writable' => 'Faila ceļā :filePath nav iespējams ielādēt failus. Lūdzu pārliecinieties, ka serverim tur ir rakstīšanas tiesības.',
@@ -77,6 +78,7 @@ return [
     // Users
     'users_cannot_delete_only_admin' => 'Jūs nevarat dzēst vienīgo administratoru',
     'users_cannot_delete_guest' => 'Jūs nevarat dzēst lietotāju "viesis"',
+    'users_could_not_send_invite' => 'Neizdevās izveidot lietotāju, jo neizdevās nosūtīt ielūguma epastu',
 
     // Roles
     'role_cannot_be_edited' => 'Šo lomu nevar rediģēt',
@@ -103,6 +105,19 @@ return [
     'app_down' => ':appName pagaidām nav pieejams',
     'back_soon' => 'Drīz būs atkal pieejams.',
 
+    // Import
+    'import_zip_cant_read' => 'Nevarēja nolasīt ZIP failu.',
+    'import_zip_cant_decode_data' => 'Nevarēja atrast un nolasīt data.json saturu ZIP failā.',
+    'import_zip_no_data' => 'ZIP faila datos nav atrasts grāmatu, nodaļu vai lapu saturs.',
+    'import_zip_data_too_large' => 'ZIP data.json content exceeds the configured application maximum upload size.',
+    'import_validation_failed' => 'ZIP faila imports ir neveiksmīgs ar šādām kļūdām:',
+    'import_zip_failed_notification' => 'ZIP faila imports ir neveiksmīgs.',
+    'import_perms_books' => 'Jums nav nepieciešamo tiesību izveidot grāmatas.',
+    'import_perms_chapters' => 'Jums nav nepieciešamo tiesību izveidot nodaļas.',
+    'import_perms_pages' => 'Jums nav nepieciešamo tiesību izveidot lapas.',
+    'import_perms_images' => 'Jums nav nepieciešamo tiesību izviedot attēlus.',
+    'import_perms_attachments' => 'Jums nav nepieciešamo tiesību izveidot pielikumus.',
+
     // API errors
     'api_no_authorization_found' => 'Pieprasījumā nav atrasts autorizācijas žetons',
     'api_bad_authorization_format' => 'Pieprasījumā atrasts autorizācijas žetons, taču tā formāts nav pareizs',
@@ -110,6 +125,7 @@ return [
     'api_incorrect_token_secret' => 'Norādītā slepenā atslēga izmantotajam API žetonam nav pareiza',
     'api_user_no_api_permission' => 'Izmantotā API žetona īpašniekam nav tiesības veikt API izsaukumus',
     'api_user_token_expired' => 'Autorizācijas žetona derīguma termiņš ir izbeidzies',
+    'api_cookie_auth_only_get' => 'Only GET requests are allowed when using the API with cookie-based authentication',
 
     // Settings & Maintenance
     'maintenance_test_email_failure' => 'Radusies kļūda sūtot testa epastu:',

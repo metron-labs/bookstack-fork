@@ -6,6 +6,7 @@ use DOMDocument;
 use DOMElement;
 use DOMNode;
 use DOMNodeList;
+use DOMText;
 use DOMXPath;
 
 /**
@@ -82,6 +83,14 @@ class HtmlDocument
     }
 
     /**
+     * Create a new text node within this document.
+     */
+    public function createTextNode(string $text): DOMText
+    {
+        return $this->document->createTextNode($text);
+    }
+
+    /**
      * Get an element within the document of the given ID.
      */
     public function getElementById(string $elementId): ?DOMElement
@@ -94,7 +103,13 @@ class HtmlDocument
      */
     public function getBody(): DOMNode
     {
-        return $this->document->getElementsByTagName('body')[0];
+        $bodies = $this->document->getElementsByTagName('body');
+
+        if ($bodies->length === 0) {
+            return new DOMElement('body', '');
+        }
+
+        return $bodies[0];
     }
 
     /**

@@ -3,93 +3,61 @@
 namespace BookStack\Search;
 
 use BookStack\Entities\EntityProvider;
-use BookStack\Entities\Models\BookChild;
 use BookStack\Entities\Models\Entity;
-use BookStack\Entities\Models\Page;
+use BookStack\Entities\Queries\EntityQueries;
+use BookStack\Entities\Tools\EntityHydrator;
 use BookStack\Permissions\PermissionApplicator;
+use BookStack\Search\Options\TagSearchOption;
 use BookStack\Users\Models\User;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use SplObjectStorage;
+use WeakMap;
 
 class SearchRunner
 {
-    protected EntityProvider $entityProvider;
-    protected PermissionApplicator $permissions;
-
     /**
-     * Acceptable operators to be used in a query.
-     *
-     * @var string[]
+     * Retain a cache of score-adjusted terms for specific search options.
      */
-    protected array $queryOperators = ['<=', '>=', '=', '<', '>', 'like', '!='];
+    protected WeakMap $termAdjustmentCache;
 
-    /**
-     * Retain a cache of score adjusted terms for specific search options.
-     * From PHP>=8 this can be made into a WeakMap instead.
-     *
-     * @var SplObjectStorage
-     */
-    protected $termAdjustmentCache;
-
-    public function __construct(EntityProvider $entityProvider, PermissionApplicator $permissions)
-    {
-        $this->entityProvider = $entityProvider;
-        $this->permissions = $permissions;
-        $this->termAdjustmentCache = new SplObjectStorage();
+    public function __construct(
+        protected EntityProvider $entityProvider,
+        protected PermissionApplicator $permissions,
+        protected EntityQueries $entityQueries,
+        protected EntityHydrator $entityHydrator,
+    ) {
+        $this->termAdjustmentCache = new WeakMap();
     }
 
     /**
      * Search all entities in the system.
-     * The provided count is for each entity to search,
-     * Total returned could be larger and not guaranteed.
      *
-     * @return array{total: int, count: int, has_more: bool, results: Collection<Entity>}
+     * @return array{total: int, results: Collection<Entity>}
      */
     public function searchEntities(SearchOptions $searchOpts, string $entityType = 'all', int $page = 1, int $count = 20): array
     {
         $entityTypes = array_keys($this->entityProvider->all());
         $entityTypesToSearch = $entityTypes;
 
+        $filterMap = $searchOpts->filters->toValueMap();
         if ($entityType !== 'all') {
             $entityTypesToSearch = [$entityType];
-        } elseif (isset($searchOpts->filters['type'])) {
-            $entityTypesToSearch = explode('|', $searchOpts->filters['type']);
+        } elseif (isset($filterMap['type'])) {
+            $entityTypesToSearch = explode('|', $filterMap['type']);
         }
 
-        $results = collect();
-        $total = 0;
-        $hasMore = false;
-
-        foreach ($entityTypesToSearch as $entityType) {
-            if (!in_array($entityType, $entityTypes)) {
-                continue;
-            }
-
-            $entityModelInstance = $this->entityProvider->get($entityType);
-            $searchQuery = $this->buildQuery($searchOpts, $entityModelInstance);
-            $entityTotal = $searchQuery->count();
-            $searchResults = $this->getPageOfDataFromQuery($searchQuery, $entityModelInstance, $page, $count);
-
-            if ($entityTotal > ($page * $count)) {
-                $hasMore = true;
-            }
-
-            $total += $entityTotal;
-            $results = $results->merge($searchResults);
-        }
+        $searchQuery = $this->buildQuery($searchOpts, $entityTypesToSearch);
+        $total = $searchQuery->count();
+        $results = $this->getPageOfDataFromQuery($searchQuery, $page, $count);
 
         return [
             'total'    => $total,
-            'count'    => count($results),
-            'has_more' => $hasMore,
-            'results'  => $results->sortByDesc('score')->values(),
+            'results'  => $results->values(),
         ];
     }
 
@@ -100,20 +68,13 @@ class SearchRunner
     {
         $opts = SearchOptions::fromString($searchString);
         $entityTypes = ['page', 'chapter'];
-        $entityTypesToSearch = isset($opts->filters['type']) ? explode('|', $opts->filters['type']) : $entityTypes;
+        $filterMap = $opts->filters->toValueMap();
+        $entityTypesToSearch = isset($filterMap['type']) ? explode('|', $filterMap['type']) : $entityTypes;
 
-        $results = collect();
-        foreach ($entityTypesToSearch as $entityType) {
-            if (!in_array($entityType, $entityTypes)) {
-                continue;
-            }
+        $filteredTypes = array_intersect($entityTypesToSearch, $entityTypes);
+        $query = $this->buildQuery($opts, $filteredTypes)->where('book_id', '=', $bookId);
 
-            $entityModelInstance = $this->entityProvider->get($entityType);
-            $search = $this->buildQuery($opts, $entityModelInstance)->where('book_id', '=', $bookId)->take(20)->get();
-            $results = $results->merge($search);
-        }
-
-        return $results->sortByDesc('score')->take(20);
+        return $this->getPageOfDataFromQuery($query, 1, 20)->sortByDesc('score');
     }
 
     /**
@@ -122,73 +83,60 @@ class SearchRunner
     public function searchChapter(int $chapterId, string $searchString): Collection
     {
         $opts = SearchOptions::fromString($searchString);
-        $entityModelInstance = $this->entityProvider->get('page');
-        $pages = $this->buildQuery($opts, $entityModelInstance)->where('chapter_id', '=', $chapterId)->take(20)->get();
+        $query = $this->buildQuery($opts, ['page'])->where('chapter_id', '=', $chapterId);
 
-        return $pages->sortByDesc('score');
+        return $this->getPageOfDataFromQuery($query, 1, 20)->sortByDesc('score');
     }
 
     /**
      * Get a page of result data from the given query based on the provided page parameters.
      */
-    protected function getPageOfDataFromQuery(EloquentBuilder $query, Entity $entityModelInstance, int $page = 1, int $count = 20): EloquentCollection
+    protected function getPageOfDataFromQuery(EloquentBuilder $query, int $page, int $count): Collection
     {
-        $relations = ['tags'];
-
-        if ($entityModelInstance instanceof BookChild) {
-            $relations['book'] = function (BelongsTo $query) {
-                $query->scopes('visible');
-            };
-        }
-
-        if ($entityModelInstance instanceof Page) {
-            $relations['chapter'] = function (BelongsTo $query) {
-                $query->scopes('visible');
-            };
-        }
-
-        return $query->clone()
-            ->with(array_filter($relations))
+        $entities = $query->clone()
             ->skip(($page - 1) * $count)
             ->take($count)
             ->get();
+
+        $hydrated = $this->entityHydrator->hydrate($entities->all(), true, true);
+
+        return collect($hydrated);
     }
 
     /**
      * Create a search query for an entity.
+     * @param string[] $entityTypes
      */
-    protected function buildQuery(SearchOptions $searchOpts, Entity $entityModelInstance): EloquentBuilder
+    protected function buildQuery(SearchOptions $searchOpts, array $entityTypes): EloquentBuilder
     {
-        $entityQuery = $entityModelInstance->newQuery()->scopes('visible');
-
-        if ($entityModelInstance instanceof Page) {
-            $entityQuery->select(array_merge($entityModelInstance::$listAttributes, ['owned_by']));
-        } else {
-            $entityQuery->select(['*']);
-        }
+        $entityQuery = $this->entityQueries->visibleForList()
+            ->whereIn('type', $entityTypes);
 
         // Handle normal search terms
-        $this->applyTermSearch($entityQuery, $searchOpts, $entityModelInstance);
+        $this->applyTermSearch($entityQuery, $searchOpts, $entityTypes);
 
         // Handle exact term matching
-        foreach ($searchOpts->exacts as $inputTerm) {
-            $entityQuery->where(function (EloquentBuilder $query) use ($inputTerm, $entityModelInstance) {
-                $inputTerm = str_replace('\\', '\\\\', $inputTerm);
+        foreach ($searchOpts->exacts->all() as $exact) {
+            $filter = function (EloquentBuilder $query) use ($exact) {
+                $inputTerm = str_replace('\\', '\\\\', $exact->value);
                 $query->where('name', 'like', '%' . $inputTerm . '%')
-                    ->orWhere($entityModelInstance->textField, 'like', '%' . $inputTerm . '%');
-            });
+                    ->orWhere('description', 'like', '%' . $inputTerm . '%')
+                    ->orWhere('text', 'like', '%' . $inputTerm . '%');
+            };
+
+            $exact->negated ? $entityQuery->whereNot($filter) : $entityQuery->where($filter);
         }
 
         // Handle tag searches
-        foreach ($searchOpts->tags as $inputTerm) {
-            $this->applyTagSearch($entityQuery, $inputTerm);
+        foreach ($searchOpts->tags->all() as $tagOption) {
+            $this->applyTagSearch($entityQuery, $tagOption);
         }
 
         // Handle filters
-        foreach ($searchOpts->filters as $filterTerm => $filterValue) {
-            $functionName = Str::camel('filter_' . $filterTerm);
+        foreach ($searchOpts->filters->all() as $filterOption) {
+            $functionName = Str::camel('filter_' . $filterOption->getKey());
             if (method_exists($this, $functionName)) {
-                $this->$functionName($entityQuery, $entityModelInstance, $filterValue);
+                $this->$functionName($entityQuery, $filterOption->value, $filterOption->negated);
             }
         }
 
@@ -198,9 +146,9 @@ class SearchRunner
     /**
      * For the given search query, apply the queries for handling the regular search terms.
      */
-    protected function applyTermSearch(EloquentBuilder $entityQuery, SearchOptions $options, Entity $entity): void
+    protected function applyTermSearch(EloquentBuilder $entityQuery, SearchOptions $options, array $entityTypes): void
     {
-        $terms = $options->searches;
+        $terms = $options->searches->toValueArray();
         if (count($terms) === 0) {
             return;
         }
@@ -215,17 +163,18 @@ class SearchRunner
         ]);
 
         $subQuery->addBinding($scoreSelect['bindings'], 'select');
-
-        $subQuery->where('entity_type', '=', $entity->getMorphClass());
         $subQuery->where(function (Builder $query) use ($terms) {
             foreach ($terms as $inputTerm) {
-                $inputTerm = str_replace('\\', '\\\\', $inputTerm);
-                $query->orWhere('term', 'like', $inputTerm . '%');
+                $escapedTerm = str_replace('\\', '\\\\', $inputTerm);
+                $query->orWhere('term', 'like', $escapedTerm . '%');
             }
         });
         $subQuery->groupBy('entity_type', 'entity_id');
 
-        $entityQuery->joinSub($subQuery, 's', 'id', '=', 'entity_id');
+        $entityQuery->joinSub($subQuery, 's', function (JoinClause $join) {
+            $join->on('s.entity_id', '=', 'entities.id')
+                ->on('s.entity_type', '=', 'entities.type');
+        });
         $entityQuery->addSelect('s.score');
         $entityQuery->orderBy('score', 'desc');
     }
@@ -274,7 +223,7 @@ class SearchRunner
         $whenStatements = [];
         $whenBindings = [];
 
-        foreach ($options->searches as $term) {
+        foreach ($options->searches->toValueArray() as $term) {
             $whenStatements[] = 'WHEN term LIKE ? THEN ?';
             $whenBindings[] = $term . '%';
             $whenBindings[] = $term;
@@ -300,7 +249,7 @@ class SearchRunner
      *
      * @param array<string, int> $termCounts
      *
-     * @return array<string, int>
+     * @return array<string, float>
      */
     protected function rawTermCountsToAdjustments(array $termCounts): array
     {
@@ -320,179 +269,167 @@ class SearchRunner
     }
 
     /**
-     * Get the available query operators as a regex escaped list.
+     * Apply a tag search term onto an entity query.
      */
-    protected function getRegexEscapedOperators(): string
+    protected function applyTagSearch(EloquentBuilder $query, TagSearchOption $option): void
     {
-        $escapedOperators = [];
-        foreach ($this->queryOperators as $operator) {
-            $escapedOperators[] = preg_quote($operator);
-        }
+        $filter = function (EloquentBuilder $query) use ($option): void {
+            $tagParts = $option->getParts();
+            if (empty($tagParts['operator']) || empty($tagParts['value'])) {
+                $query->where('name', '=', $tagParts['name']);
+                return;
+            }
 
-        return implode('|', $escapedOperators);
+            if (!empty($tagParts['name'])) {
+                $query->where('name', '=', $tagParts['name']);
+            }
+
+            if (is_numeric($tagParts['value']) && $tagParts['operator'] !== 'like') {
+                // We have to do a raw sql query for this since otherwise PDO will quote the value and MySQL will
+                // search the value as a string which prevents being able to do number-based operations
+                // on the tag values. We ensure it has a numeric value and then cast it just to be sure.
+                /** @var Connection $connection */
+                $connection = $query->getConnection();
+                $quotedValue = (float) trim($connection->getPdo()->quote($tagParts['value']), "'");
+                $query->whereRaw("value {$tagParts['operator']} {$quotedValue}");
+            } else if ($tagParts['operator'] === 'like') {
+                $query->where('value', $tagParts['operator'], str_replace('\\', '\\\\', $tagParts['value']));
+            } else {
+                $query->where('value', $tagParts['operator'], $tagParts['value']);
+            }
+        };
+
+        $option->negated ? $query->whereDoesntHave('tags', $filter) : $query->whereHas('tags', $filter);
     }
 
-    /**
-     * Apply a tag search term onto a entity query.
-     */
-    protected function applyTagSearch(EloquentBuilder $query, string $tagTerm): EloquentBuilder
+    protected function applyNegatableWhere(EloquentBuilder $query, bool $negated, string|callable $column, string|null $operator, mixed $value): void
     {
-        preg_match('/^(.*?)((' . $this->getRegexEscapedOperators() . ')(.*?))?$/', $tagTerm, $tagSplit);
-        $query->whereHas('tags', function (EloquentBuilder $query) use ($tagSplit) {
-            $tagName = $tagSplit[1];
-            $tagOperator = count($tagSplit) > 2 ? $tagSplit[3] : '';
-            $tagValue = count($tagSplit) > 3 ? $tagSplit[4] : '';
-            $validOperator = in_array($tagOperator, $this->queryOperators);
-            if (!empty($tagOperator) && !empty($tagValue) && $validOperator) {
-                if (!empty($tagName)) {
-                    $query->where('name', '=', $tagName);
-                }
-                if (is_numeric($tagValue) && $tagOperator !== 'like') {
-                    // We have to do a raw sql query for this since otherwise PDO will quote the value and MySQL will
-                    // search the value as a string which prevents being able to do number-based operations
-                    // on the tag values. We ensure it has a numeric value and then cast it just to be sure.
-                    /** @var Connection $connection */
-                    $connection = $query->getConnection();
-                    $tagValue = (float) trim($connection->getPdo()->quote($tagValue), "'");
-                    $query->whereRaw("value {$tagOperator} {$tagValue}");
-                } else {
-                    if ($tagOperator === 'like') {
-                        $tagValue = str_replace('\\', '\\\\', $tagValue);
-                    }
-                    $query->where('value', $tagOperator, $tagValue);
-                }
-            } else {
-                $query->where('name', '=', $tagName);
-            }
-        });
-
-        return $query;
+        if ($negated) {
+            $query->whereNot($column, $operator, $value);
+        } else {
+            $query->where($column, $operator, $value);
+        }
     }
 
     /**
      * Custom entity search filters.
      */
-    protected function filterUpdatedAfter(EloquentBuilder $query, Entity $model, $input): void
+    protected function filterUpdatedAfter(EloquentBuilder $query, string $input, bool $negated): void
     {
-        try {
-            $date = date_create($input);
-            $query->where('updated_at', '>=', $date);
-        } catch (\Exception $e) {
-        }
+        $date = date_create($input);
+        $this->applyNegatableWhere($query, $negated, 'updated_at', '>=', $date);
     }
 
-    protected function filterUpdatedBefore(EloquentBuilder $query, Entity $model, $input): void
+    protected function filterUpdatedBefore(EloquentBuilder $query, string $input, bool $negated): void
     {
-        try {
-            $date = date_create($input);
-            $query->where('updated_at', '<', $date);
-        } catch (\Exception $e) {
-        }
+        $date = date_create($input);
+        $this->applyNegatableWhere($query, $negated, 'updated_at', '<', $date);
     }
 
-    protected function filterCreatedAfter(EloquentBuilder $query, Entity $model, $input): void
+    protected function filterCreatedAfter(EloquentBuilder $query, string $input, bool $negated): void
     {
-        try {
-            $date = date_create($input);
-            $query->where('created_at', '>=', $date);
-        } catch (\Exception $e) {
-        }
+        $date = date_create($input);
+        $this->applyNegatableWhere($query, $negated, 'created_at', '>=', $date);
     }
 
-    protected function filterCreatedBefore(EloquentBuilder $query, Entity $model, $input)
+    protected function filterCreatedBefore(EloquentBuilder $query, string $input, bool $negated)
     {
-        try {
-            $date = date_create($input);
-            $query->where('created_at', '<', $date);
-        } catch (\Exception $e) {
-        }
+        $date = date_create($input);
+        $this->applyNegatableWhere($query, $negated, 'created_at', '<', $date);
     }
 
-    protected function filterCreatedBy(EloquentBuilder $query, Entity $model, $input)
+    protected function filterCreatedBy(EloquentBuilder $query, string $input, bool $negated)
     {
         $userSlug = $input === 'me' ? user()->slug : trim($input);
         $user = User::query()->where('slug', '=', $userSlug)->first(['id']);
         if ($user) {
-            $query->where('created_by', '=', $user->id);
+            $this->applyNegatableWhere($query, $negated, 'created_by', '=', $user->id);
         }
     }
 
-    protected function filterUpdatedBy(EloquentBuilder $query, Entity $model, $input)
+    protected function filterUpdatedBy(EloquentBuilder $query, string $input, bool $negated)
     {
         $userSlug = $input === 'me' ? user()->slug : trim($input);
         $user = User::query()->where('slug', '=', $userSlug)->first(['id']);
         if ($user) {
-            $query->where('updated_by', '=', $user->id);
+            $this->applyNegatableWhere($query, $negated, 'updated_by', '=', $user->id);
         }
     }
 
-    protected function filterOwnedBy(EloquentBuilder $query, Entity $model, $input)
+    protected function filterOwnedBy(EloquentBuilder $query, string $input, bool $negated)
     {
         $userSlug = $input === 'me' ? user()->slug : trim($input);
         $user = User::query()->where('slug', '=', $userSlug)->first(['id']);
         if ($user) {
-            $query->where('owned_by', '=', $user->id);
+            $this->applyNegatableWhere($query, $negated, 'owned_by', '=', $user->id);
         }
     }
 
-    protected function filterInName(EloquentBuilder $query, Entity $model, $input)
+    protected function filterInName(EloquentBuilder $query, string $input, bool $negated)
     {
-        $query->where('name', 'like', '%' . $input . '%');
+        $this->applyNegatableWhere($query, $negated, 'name', 'like', '%' . $input . '%');
     }
 
-    protected function filterInTitle(EloquentBuilder $query, Entity $model, $input)
+    protected function filterInTitle(EloquentBuilder $query, string $input, bool $negated)
     {
-        $this->filterInName($query, $model, $input);
+        $this->filterInName($query, $input, $negated);
     }
 
-    protected function filterInBody(EloquentBuilder $query, Entity $model, $input)
+    protected function filterInBody(EloquentBuilder $query, string $input, bool $negated)
     {
-        $query->where($model->textField, 'like', '%' . $input . '%');
+        $this->applyNegatableWhere($query, $negated, function (EloquentBuilder $query) use ($input) {
+            $query->where('description', 'like', '%' . $input . '%')
+                ->orWhere('text', 'like', '%' . $input . '%');
+        }, null, null);
     }
 
-    protected function filterIsRestricted(EloquentBuilder $query, Entity $model, $input)
+    protected function filterIsRestricted(EloquentBuilder $query, string $input, bool $negated)
     {
-        $query->whereHas('permissions');
+        $negated ? $query->whereDoesntHave('permissions') : $query->whereHas('permissions');
     }
 
-    protected function filterViewedByMe(EloquentBuilder $query, Entity $model, $input)
+    protected function filterViewedByMe(EloquentBuilder $query, string $input, bool $negated)
     {
-        $query->whereHas('views', function ($query) {
+        $filter = function ($query) {
             $query->where('user_id', '=', user()->id);
-        });
+        };
+
+        $negated ? $query->whereDoesntHave('views', $filter) : $query->whereHas('views', $filter);
     }
 
-    protected function filterNotViewedByMe(EloquentBuilder $query, Entity $model, $input)
+    protected function filterNotViewedByMe(EloquentBuilder $query, string $input, bool $negated)
     {
-        $query->whereDoesntHave('views', function ($query) {
+        $filter = function ($query) {
             $query->where('user_id', '=', user()->id);
-        });
+        };
+
+        $negated ? $query->whereHas('views', $filter) : $query->whereDoesntHave('views', $filter);
     }
 
-    protected function filterIsTemplate(EloquentBuilder $query, Entity $model, $input)
+    protected function filterIsTemplate(EloquentBuilder $query, string $input, bool $negated)
     {
-        if ($model instanceof Page) {
-            $query->where('template', '=', true);
-        }
+        $this->applyNegatableWhere($query, $negated, 'template', '=', true);
     }
 
-    protected function filterSortBy(EloquentBuilder $query, Entity $model, $input)
+    protected function filterSortBy(EloquentBuilder $query, string $input, bool $negated)
     {
         $functionName = Str::camel('sort_by_' . $input);
         if (method_exists($this, $functionName)) {
-            $this->$functionName($query, $model);
+            $this->$functionName($query, $negated);
         }
     }
 
     /**
      * Sorting filter options.
      */
-    protected function sortByLastCommented(EloquentBuilder $query, Entity $model)
+    protected function sortByLastCommented(EloquentBuilder $query, bool $negated)
     {
         $commentsTable = DB::getTablePrefix() . 'comments';
-        $morphClass = str_replace('\\', '\\\\', $model->getMorphClass());
-        $commentQuery = DB::raw('(SELECT c1.entity_id, c1.entity_type, c1.created_at as last_commented FROM ' . $commentsTable . ' c1 LEFT JOIN ' . $commentsTable . ' c2 ON (c1.entity_id = c2.entity_id AND c1.entity_type = c2.entity_type AND c1.created_at < c2.created_at) WHERE c1.entity_type = \'' . $morphClass . '\' AND c2.created_at IS NULL) as comments');
+        $commentQuery = DB::raw('(SELECT c1.commentable_id, c1.commentable_type, c1.created_at as last_commented FROM ' . $commentsTable . ' c1 LEFT JOIN ' . $commentsTable . ' c2 ON (c1.commentable_id = c2.commentable_id AND c1.commentable_type = c2.commentable_type AND c1.created_at < c2.created_at) WHERE c2.created_at IS NULL) as comments');
 
-        $query->join($commentQuery, $model->getTable() . '.id', '=', 'comments.entity_id')->orderBy('last_commented', 'desc');
+        $query->join($commentQuery, function (JoinClause $join) {
+            $join->on('entities.id', '=', 'comments.commentable_id')
+                ->on('entities.type', '=', 'comments.commentable_type');
+        })->orderBy('last_commented', $negated ? 'asc' : 'desc');
     }
 }

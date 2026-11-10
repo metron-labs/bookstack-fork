@@ -5,6 +5,8 @@ namespace Tests\Uploads;
 use BookStack\Entities\Repos\PageRepo;
 use BookStack\Uploads\Image;
 use BookStack\Uploads\ImageService;
+use BookStack\Uploads\UserAvatars;
+use BookStack\Users\Models\Role;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -68,7 +70,24 @@ class ImageTest extends TestCase
         $this->files->deleteAtRelativePath($imgDetails['path']);
 
         $this->assertStringContainsString('thumbs-', $imgDetails['response']->thumbs->gallery);
-        $this->assertStringNotContainsString('thumbs-', $imgDetails['response']->thumbs->display);
+        $this->assertStringNotContainsString('scaled-', $imgDetails['response']->thumbs->display);
+    }
+
+    public function test_image_display_thumbnail_generation_for_animated_avif_images_uses_original_file()
+    {
+        if (! function_exists('imageavif')) {
+            $this->markTestSkipped('imageavif() is not available');
+        }
+
+        $page = $this->entities->page();
+        $admin = $this->users->admin();
+        $this->actingAs($admin);
+
+        $imgDetails = $this->files->uploadGalleryImageToPage($this, $page, 'animated.avif');
+        $this->files->deleteAtRelativePath($imgDetails['path']);
+
+        $this->assertStringContainsString('thumbs-', $imgDetails['response']->thumbs->gallery);
+        $this->assertStringNotContainsString('scaled-', $imgDetails['response']->thumbs->display);
     }
 
     public function test_image_edit()
@@ -101,6 +120,33 @@ class ImageTest extends TestCase
         $relPath = $imgDetails['path'];
 
         $newUpload = $this->files->uploadedImage('updated-image.png', 'compressed.png');
+        $this->assertFileEquals($this->files->testFilePath('test-image.png'), public_path($relPath));
+
+        $imageId = $imgDetails['response']->id;
+        $image = Image::findOrFail($imageId);
+        $image->updated_at = now()->subMonth();
+        $image->save();
+
+        $this->call('PUT', "/images/{$imageId}/file", [], [], ['file' => $newUpload])
+            ->assertOk();
+
+        $this->assertFileEquals($this->files->testFilePath('compressed.png'), public_path($relPath));
+
+        $image->refresh();
+        $this->assertTrue($image->updated_at->gt(now()->subMinute()));
+
+        $this->files->deleteAtRelativePath($relPath);
+    }
+
+    public function test_image_file_update_allows_case_differences()
+    {
+        $page = $this->entities->page();
+        $this->asEditor();
+
+        $imgDetails = $this->files->uploadGalleryImageToPage($this, $page);
+        $relPath = $imgDetails['path'];
+
+        $newUpload = $this->files->uploadedImage('updated-image.PNG', 'compressed.png');
         $this->assertFileEquals($this->files->testFilePath('test-image.png'), public_path($relPath));
 
         $imageId = $imgDetails['response']->id;
@@ -400,6 +446,26 @@ class ImageTest extends TestCase
         }
     }
 
+    public function test_avatar_images_visible_only_when_public_access_enabled_with_local_secure_restricted()
+    {
+        config()->set('filesystems.images', 'local_secure_restricted');
+        $user = $this->users->admin();
+        $avatars = $this->app->make(UserAvatars::class);
+        $avatars->assignToUserFromExistingData($user, $this->files->pngImageData(), 'png');
+
+        $avatarUrl = $user->getAvatar();
+
+        $resp = $this->get($avatarUrl);
+        $resp->assertRedirect('/login');
+
+        $this->permissions->makeAppPublic();
+
+        $resp = $this->get($avatarUrl);
+        $resp->assertOk();
+
+        $this->files->deleteAtRelativePath($user->avatar->path);
+    }
+
     public function test_secure_restricted_images_inaccessible_without_relation_permission()
     {
         config()->set('filesystems.images', 'local_secure_restricted');
@@ -418,6 +484,38 @@ class ImageTest extends TestCase
 
         $resp = $this->get($expectedUrl);
         $resp->assertNotFound();
+
+        if (file_exists($expectedPath)) {
+            unlink($expectedPath);
+        }
+    }
+
+    public function test_secure_restricted_images_accessible_with_public_guest_access()
+    {
+        config()->set('filesystems.images', 'local_secure_restricted');
+        $this->permissions->makeAppPublic();
+
+        $this->asEditor();
+        $page = $this->entities->page();
+        $this->files->uploadGalleryImageToPage($this, $page);
+        $image = Image::query()->where('type', '=', 'gallery')
+            ->where('uploaded_to', '=', $page->id)
+            ->first();
+
+        $expectedUrl = url($image->path);
+        $expectedPath = storage_path($image->path);
+        auth()->logout();
+
+        $this->get($expectedUrl)->assertOk();
+
+        $this->permissions->setEntityPermissions($page, [], []);
+
+        $resp = $this->get($expectedUrl);
+        $resp->assertNotFound();
+
+        $this->permissions->setEntityPermissions($page, ['view'], [Role::getSystemRole('public')]);
+
+        $this->get($expectedUrl)->assertOk();
 
         if (file_exists($expectedPath)) {
             unlink($expectedPath);
@@ -574,6 +672,40 @@ class ImageTest extends TestCase
 
         $this->assertFileExists($this->files->relativeToFullPath($expectedThumbPath));
         $this->files->deleteAtRelativePath($relPath);
+    }
+
+    public function test_gif_thumbnail_generation()
+    {
+        $this->asAdmin();
+        $originalFile = $this->files->testFilePath('animated.gif');
+        $originalFileSize = filesize($originalFile);
+
+        $imgDetails = $this->files->uploadGalleryImageToPage($this, $this->entities->page(), 'animated.gif');
+        $relPath = $imgDetails['path'];
+
+        $this->assertTrue(file_exists(public_path($relPath)), 'Uploaded image found at path: ' . public_path($relPath));
+        $galleryThumb = $imgDetails['response']->thumbs->gallery;
+        $displayThumb = $imgDetails['response']->thumbs->display;
+
+        // Ensure display thumbnail is original image
+        $this->assertStringEndsWith($imgDetails['path'], $displayThumb);
+        $this->assertStringNotContainsString('thumbs', $displayThumb);
+
+        // Ensure gallery thumbnail is reduced image (single frame)
+        $galleryThumbRelPath = implode('/', array_slice(explode('/', $galleryThumb), 3));
+        $galleryThumbPath = public_path($galleryThumbRelPath);
+        $galleryFileSize = filesize($galleryThumbPath);
+
+        // Basic scan of GIF content to check frame count
+        $originalFrameCount = count(explode("\x00\x21\xF9", file_get_contents($originalFile))) - 1;
+        $galleryFrameCount = count(explode("\x00\x21\xF9", file_get_contents($galleryThumbPath))) - 1;
+
+        $this->files->deleteAtRelativePath($relPath);
+        $this->files->deleteAtRelativePath($galleryThumbRelPath);
+
+        $this->assertNotEquals($originalFileSize, $galleryFileSize);
+        $this->assertEquals(2, $originalFrameCount);
+        $this->assertLessThan(2, $galleryFrameCount);
     }
 
     protected function getTestProfileImage()

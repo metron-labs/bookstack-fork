@@ -2,16 +2,18 @@
 
 namespace BookStack\Search;
 
-use BookStack\Entities\Models\Page;
-use BookStack\Entities\Queries\Popular;
+use BookStack\Entities\Queries\PageQueries;
+use BookStack\Entities\Queries\QueryPopular;
 use BookStack\Entities\Tools\SiblingFetcher;
 use BookStack\Http\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class SearchController extends Controller
 {
     public function __construct(
-        protected SearchRunner $searchRunner
+        protected SearchRunner $searchRunner,
+        protected PageQueries $pageQueries,
     ) {
     }
 
@@ -22,20 +24,22 @@ class SearchController extends Controller
     {
         $searchOpts = SearchOptions::fromRequest($request);
         $fullSearchString = $searchOpts->toString();
-        $this->setPageTitle(trans('entities.search_for_term', ['term' => $fullSearchString]));
-
         $page = intval($request->get('page', '0')) ?: 1;
-        $nextPageLink = url('/search?term=' . urlencode($fullSearchString) . '&page=' . ($page + 1));
+        $count = setting()->getInteger('lists-page-count-search', 18, 1, 1000);
 
-        $results = $this->searchRunner->searchEntities($searchOpts, 'all', $page, 20);
+        $results = $this->searchRunner->searchEntities($searchOpts, 'all', $page, $count);
         $formatter->format($results['results']->all(), $searchOpts);
+        $paginator = new LengthAwarePaginator($results['results'], $results['total'], $count, $page);
+        $paginator->setPath(url('/search'));
+        $paginator->appends($request->except('page'));
+
+        $this->setPageTitle(trans('entities.search_for_term', ['term' => $fullSearchString]));
 
         return view('search.all', [
             'entities'     => $results['results'],
             'totalResults' => $results['total'],
+            'paginator'    => $paginator,
             'searchTerm'   => $fullSearchString,
-            'hasNextPage'  => $results['has_more'],
-            'nextPageLink' => $nextPageLink,
             'options'      => $searchOpts,
         ]);
     }
@@ -66,7 +70,7 @@ class SearchController extends Controller
      * Search for a list of entities and return a partial HTML response of matching entities.
      * Returns the most popular entities if no search is provided.
      */
-    public function searchForSelector(Request $request)
+    public function searchForSelector(Request $request, QueryPopular $queryPopular)
     {
         $entityTypes = $request->filled('types') ? explode(',', $request->get('types')) : ['page', 'chapter', 'book'];
         $searchTerm = $request->get('term', false);
@@ -74,10 +78,11 @@ class SearchController extends Controller
 
         // Search for entities otherwise show most popular
         if ($searchTerm !== false) {
-            $searchTerm .= ' {type:' . implode('|', $entityTypes) . '}';
-            $entities = $this->searchRunner->searchEntities(SearchOptions::fromString($searchTerm), 'all', 1, 20)['results'];
+            $options = SearchOptions::fromString($searchTerm);
+            $options->setFilter('type', implode('|', $entityTypes));
+            $entities = $this->searchRunner->searchEntities($options, 'all', 1, 20)['results'];
         } else {
-            $entities = (new Popular())->run(20, 0, $entityTypes);
+            $entities = $queryPopular->run(20, 0, $entityTypes);
         }
 
         return view('search.parts.entity-selector-list', ['entities' => $entities, 'permission' => $permission]);
@@ -95,12 +100,11 @@ class SearchController extends Controller
             $searchOptions->setFilter('is_template');
             $entities = $this->searchRunner->searchEntities($searchOptions, 'page', 1, 20)['results'];
         } else {
-            $entities = Page::visible()
-                ->where('template', '=', true)
+            $entities = $this->pageQueries->visibleTemplates()
                 ->where('draft', '=', false)
                 ->orderBy('updated_at', 'desc')
                 ->take(20)
-                ->get(Page::$listAttributes);
+                ->get();
         }
 
         return view('search.parts.entity-selector-list', [
@@ -128,14 +132,14 @@ class SearchController extends Controller
     }
 
     /**
-     * Search siblings items in the system.
+     * Search sibling items in the system.
      */
-    public function searchSiblings(Request $request)
+    public function searchSiblings(Request $request, SiblingFetcher $siblingFetcher)
     {
         $type = $request->get('entity_type', null);
         $id = $request->get('entity_id', null);
 
-        $entities = (new SiblingFetcher())->fetch($type, $id);
+        $entities = $siblingFetcher->fetch($type, $id);
 
         return view('entities.list-basic', ['entities' => $entities, 'style' => 'compact']);
     }

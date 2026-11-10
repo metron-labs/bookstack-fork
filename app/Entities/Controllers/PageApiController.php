@@ -2,18 +2,19 @@
 
 namespace BookStack\Entities\Controllers;
 
-use BookStack\Entities\Models\Book;
-use BookStack\Entities\Models\Chapter;
-use BookStack\Entities\Models\Page;
+use BookStack\Activity\Tools\CommentTree;
+use BookStack\Entities\Queries\EntityQueries;
+use BookStack\Entities\Queries\PageQueries;
 use BookStack\Entities\Repos\PageRepo;
 use BookStack\Exceptions\PermissionsException;
 use BookStack\Http\ApiController;
+use BookStack\Permissions\Permission;
 use Exception;
 use Illuminate\Http\Request;
 
 class PageApiController extends ApiController
 {
-    protected $rules = [
+    protected array $rules = [
         'create' => [
             'book_id'    => ['required_without:chapter_id', 'integer'],
             'chapter_id' => ['required_without:book_id', 'integer'],
@@ -35,7 +36,9 @@ class PageApiController extends ApiController
     ];
 
     public function __construct(
-        protected PageRepo $pageRepo
+        protected PageRepo $pageRepo,
+        protected PageQueries $queries,
+        protected EntityQueries $entityQueries,
     ) {
     }
 
@@ -44,7 +47,8 @@ class PageApiController extends ApiController
      */
     public function list()
     {
-        $pages = Page::visible();
+        $pages = $this->queries->visibleForList()
+            ->addSelect(['created_by', 'updated_by', 'revision_count', 'editor']);
 
         return $this->apiListingResponse($pages, [
             'id', 'book_id', 'chapter_id', 'name', 'slug', 'priority',
@@ -70,11 +74,11 @@ class PageApiController extends ApiController
         $this->validate($request, $this->rules['create']);
 
         if ($request->has('chapter_id')) {
-            $parent = Chapter::visible()->findOrFail($request->get('chapter_id'));
+            $parent = $this->entityQueries->chapters->findVisibleByIdOrFail(intval($request->get('chapter_id')));
         } else {
-            $parent = Book::visible()->findOrFail($request->get('book_id'));
+            $parent = $this->entityQueries->books->findVisibleByIdOrFail(intval($request->get('book_id')));
         }
-        $this->checkOwnablePermission('page-create', $parent);
+        $this->checkOwnablePermission(Permission::PageCreate, $parent);
 
         $draft = $this->pageRepo->getNewDraftPage($parent);
         $this->pageRepo->publishDraft($draft, $request->only(array_keys($this->rules['create'])));
@@ -85,21 +89,32 @@ class PageApiController extends ApiController
     /**
      * View the details of a single page.
      * Pages will always have HTML content. They may have markdown content
-     * if the markdown editor was used to last update the page.
+     * if the Markdown editor was used to last update the page.
      *
-     * The 'html' property is the fully rendered & escaped HTML content that BookStack
+     * The 'html' property is the fully rendered and escaped HTML content that BookStack
      * would show on page view, with page includes handled.
      * The 'raw_html' property is the direct database stored HTML content, which would be
      * what BookStack shows on page edit.
      *
      * See the "Content Security" section of these docs for security considerations when using
      * the page content returned from this endpoint.
+     *
+     * Comments for the page are provided in a tree-structure representing the hierarchy of top-level
+     * comments and replies, for both archived and active comments.
      */
     public function read(string $id)
     {
-        $page = $this->pageRepo->getById($id, []);
+        $page = $this->queries->findVisibleByIdOrFail($id);
 
-        return response()->json($page->forJsonDisplay());
+        $page = $page->forJsonDisplay();
+        $commentTree = (new CommentTree($page));
+        $commentTree->loadVisibleHtml();
+        $page->setAttribute('comments', [
+            'active' => $commentTree->getActive(),
+            'archived' => $commentTree->getArchived(),
+        ]);
+
+        return response()->json($page);
     }
 
     /**
@@ -113,18 +128,18 @@ class PageApiController extends ApiController
     {
         $requestData = $this->validate($request, $this->rules['update']);
 
-        $page = $this->pageRepo->getById($id, []);
-        $this->checkOwnablePermission('page-update', $page);
+        $page = $this->queries->findVisibleByIdOrFail($id);
+        $this->checkOwnablePermission(Permission::PageUpdate, $page);
 
         $parent = null;
         if ($request->has('chapter_id')) {
-            $parent = Chapter::visible()->findOrFail($request->get('chapter_id'));
+            $parent = $this->entityQueries->chapters->findVisibleByIdOrFail(intval($request->get('chapter_id')));
         } elseif ($request->has('book_id')) {
-            $parent = Book::visible()->findOrFail($request->get('book_id'));
+            $parent = $this->entityQueries->books->findVisibleByIdOrFail(intval($request->get('book_id')));
         }
 
         if ($parent && !$parent->matches($page->getParent())) {
-            $this->checkOwnablePermission('page-delete', $page);
+            $this->checkOwnablePermission(Permission::PageDelete, $page);
 
             try {
                 $this->pageRepo->move($page, $parent->getType() . ':' . $parent->id);
@@ -148,8 +163,8 @@ class PageApiController extends ApiController
      */
     public function delete(string $id)
     {
-        $page = $this->pageRepo->getById($id, []);
-        $this->checkOwnablePermission('page-delete', $page);
+        $page = $this->queries->findVisibleByIdOrFail($id);
+        $this->checkOwnablePermission(Permission::PageDelete, $page);
 
         $this->pageRepo->destroy($page);
 

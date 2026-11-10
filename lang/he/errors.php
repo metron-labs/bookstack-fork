@@ -10,6 +10,7 @@ return [
 
     // Auth
     'error_user_exists_different_creds' => 'משתמש עם המייל :email כבר קיים אך עם פרטי הזדהות שונים',
+    'auth_pre_register_theme_prevention' => 'User account could not be registered for the provided details',
     'email_already_confirmed' => 'המייל כבר אומת, אנא נסה להתחבר',
     'email_confirmation_invalid' => 'מפתח האימות אינו תקין או שכבר נעשה בו שימוש, אנא נסה להרשם שנית',
     'email_confirmation_expired' => 'מפתח האימות פג-תוקף, מייל אימות חדש נשלח שוב.',
@@ -23,7 +24,6 @@ return [
     'saml_invalid_response_id' => 'The request from the external authentication system is not recognised by a process started by this application. Navigating back after a login could cause this issue.',
     'saml_fail_authed' => 'Login using :system failed, system did not provide successful authorization',
     'oidc_already_logged_in' => 'כבר מחובר',
-    'oidc_user_not_registered' => 'The user :name is not registered and automatic registration is disabled',
     'oidc_no_email_address' => 'Could not find an email address, for this user, in the data provided by the external authentication system',
     'oidc_fail_authed' => 'Login using :system failed, system did not provide successful authorization',
     'social_no_action_defined' => 'לא הוגדרה פעולה',
@@ -37,6 +37,7 @@ return [
     'social_driver_not_found' => 'Social driver not found',
     'social_driver_not_configured' => 'הגדרות ה :socialAccount אינן מוגדרות כראוי',
     'invite_token_expired' => 'לינק ההזמנה פג. אתה יכול לנסות לאפס את סיסמת החשבון שלך במקום.',
+    'login_user_not_found' => 'A user for this action could not be found.',
 
     // System
     'path_not_writable' => 'לא ניתן להעלות את :filePath אנא ודא שניתן לכתוב למיקום זה',
@@ -77,6 +78,7 @@ return [
     // Users
     'users_cannot_delete_only_admin' => 'אינך יכול למחוק את המנהל היחיד',
     'users_cannot_delete_guest' => 'אינך יכול למחוק את משתמש האורח',
+    'users_could_not_send_invite' => 'Could not create user since invite email failed to send',
 
     // Roles
     'role_cannot_be_edited' => 'לא ניתן לערוך תפקיד זה',
@@ -103,6 +105,19 @@ return [
     'app_down' => ':appName כרגע אינו זמין',
     'back_soon' => 'מקווים שיחזור במהרה',
 
+    // Import
+    'import_zip_cant_read' => 'Could not read ZIP file.',
+    'import_zip_cant_decode_data' => 'Could not find and decode ZIP data.json content.',
+    'import_zip_no_data' => 'ZIP file data has no expected book, chapter or page content.',
+    'import_zip_data_too_large' => 'ZIP data.json content exceeds the configured application maximum upload size.',
+    'import_validation_failed' => 'Import ZIP failed to validate with errors:',
+    'import_zip_failed_notification' => 'Failed to import ZIP file.',
+    'import_perms_books' => 'You are lacking the required permissions to create books.',
+    'import_perms_chapters' => 'You are lacking the required permissions to create chapters.',
+    'import_perms_pages' => 'You are lacking the required permissions to create pages.',
+    'import_perms_images' => 'You are lacking the required permissions to create images.',
+    'import_perms_attachments' => 'You are lacking the required permission to create attachments.',
+
     // API errors
     'api_no_authorization_found' => 'No authorization token found on the request',
     'api_bad_authorization_format' => 'An authorization token was found on the request but the format appeared incorrect',
@@ -110,6 +125,7 @@ return [
     'api_incorrect_token_secret' => 'The secret provided for the given used API token is incorrect',
     'api_user_no_api_permission' => 'The owner of the used API token does not have permission to make API calls',
     'api_user_token_expired' => 'The authorization token used has expired',
+    'api_cookie_auth_only_get' => 'Only GET requests are allowed when using the API with cookie-based authentication',
 
     // Settings & Maintenance
     'maintenance_test_email_failure' => 'Error thrown when sending a test email:',

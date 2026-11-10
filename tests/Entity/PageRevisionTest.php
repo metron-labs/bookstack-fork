@@ -47,6 +47,20 @@ class PageRevisionTest extends TestCase
         $revisionView->assertSee('new revision content');
     }
 
+    public function test_page_revision_preview_filters_html_content()
+    {
+        $this->asEditor();
+        $page = $this->entities->page();
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => '<script>dontwantthishere</script><style>dontwantthishere</style><p>expectthisthough</p>']);
+        $pageRevision = $page->revisions->last();
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => '<p>Updated content</p>']);
+
+        $revisionView = $this->get($page->getUrl() . '/revisions/' . $pageRevision->id);
+        $revisionView->assertStatus(200);
+        $revisionView->assertSee('expectthisthough');
+        $revisionView->assertDontSee('dontwantthishere');
+    }
+
     public function test_page_revision_restore_updates_content()
     {
         $this->asEditor();
@@ -91,7 +105,7 @@ class PageRevisionTest extends TestCase
         $restoreReq->assertRedirect($page->getUrl());
 
         $pageView = $this->get($page->getUrl());
-        $this->assertDatabaseHas('pages', [
+        $this->assertDatabaseHasEntityData('page', [
             'id'       => $page->id,
             'markdown' => '## New Content def456',
         ]);
@@ -201,6 +215,46 @@ class PageRevisionTest extends TestCase
         $this->createRevisions($page, 1, ['markdown' => '# Some markdown content']);
         $resp = $this->get($page->refresh()->getUrl('/revisions'));
         $this->withHtml($resp)->assertElementContains('.item-list-row > div:nth-child(2)', 'Markdown)');
+    }
+
+    public function test_revision_changes_link_not_shown_for_oldest_revision()
+    {
+        $page = $this->entities->page();
+        $this->createRevisions($page, 3, ['html' => 'new page html']);
+
+        $resp = $this->asAdmin()->get($page->refresh()->getUrl('/revisions'));
+        $html = $this->withHtml($resp);
+
+        $html->assertElementNotExists('.item-list > .item-list-row:last-child a[href*="/changes"]');
+        $html->assertElementContains('.item-list > .item-list-row:nth-child(2)', 'Changes');
+    }
+
+    public function test_revision_changes_view_shows_diff()
+    {
+        $this->asEditor();
+        $page = $this->entities->page();
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => '<p id="bkmrk-hello">Hello there dog</p>']);
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => '<p id="bkmrk-hello">Hello there cat</p>']);
+
+        $pageRevision = $page->revisions()->orderBy('id', 'desc')->first();
+        $revisionView = $this->get("{$page->getUrl()}/revisions/{$pageRevision->id}/changes");
+        $revisionView->assertStatus(200);
+        $revisionView->assertSee('<p id="bkmrk-hello">Hello there <del class="diffmod">dog</del><ins class="diffmod">cat</ins></p>', false);
+    }
+
+    public function test_revision_changes_view_filters_html_content()
+    {
+        $this->asEditor();
+        $page = $this->entities->page();
+        $html = '<script>dontwantthishere</script><style>dontwantthishere</style><p>expectthisthough</p>';
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => $html]);
+        $this->createRevisions($page, 1, ['name' => 'updated page', 'html' => $html]);
+
+        $pageRevision = $page->revisions()->orderBy('id', 'desc')->first();
+        $revisionView = $this->get("{$page->getUrl()}/revisions/{$pageRevision->id}/changes");
+        $revisionView->assertStatus(200);
+        $revisionView->assertSee('expectthisthough');
+        $revisionView->assertDontSee('dontwantthishere');
     }
 
     public function test_revision_restore_action_only_visible_with_permission()

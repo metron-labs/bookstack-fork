@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Class Page.
- *
+ * @property EntityPageData $pageData
  * @property int          $chapter_id
  * @property string       $html
  * @property string       $markdown
@@ -32,15 +32,10 @@ class Page extends BookChild
 {
     use HasFactory;
 
-    public static $listAttributes = ['name', 'id', 'slug', 'book_id', 'chapter_id', 'draft', 'template', 'text', 'created_at', 'updated_at', 'priority'];
-    public static $contentAttributes = ['name', 'id', 'slug', 'book_id', 'chapter_id', 'draft', 'template', 'html', 'text', 'created_at', 'updated_at', 'priority'];
-
-    protected $fillable = ['name', 'priority'];
-
     public string $textField = 'text';
     public string $htmlField = 'html';
-
-    protected $hidden = ['html', 'markdown', 'text', 'pivot', 'deleted_at'];
+    protected $hidden = ['html', 'markdown', 'text', 'pivot', 'deleted_at',  'entity_id', 'entity_type'];
+    protected $fillable = ['name', 'priority'];
 
     protected $casts = [
         'draft'    => 'boolean',
@@ -59,10 +54,8 @@ class Page extends BookChild
 
     /**
      * Get the chapter that this page is in, If applicable.
-     *
-     * @return BelongsTo
      */
-    public function chapter()
+    public function chapter(): BelongsTo
     {
         return $this->belongsTo(Chapter::class);
     }
@@ -109,10 +102,8 @@ class Page extends BookChild
 
     /**
      * Get the attachments assigned to this page.
-     *
-     * @return HasMany
      */
-    public function attachments()
+    public function attachments(): HasMany
     {
         return $this->hasMany(Attachment::class, 'uploaded_to')->orderBy('order', 'asc');
     }
@@ -134,6 +125,14 @@ class Page extends BookChild
     }
 
     /**
+     * Get the ID-based permalink for this page.
+     */
+    public function getPermalink(): string
+    {
+        return url("/link/{$this->id}");
+    }
+
+    /**
      * Get this page for JSON display.
      */
     public function forJsonDisplay(): self
@@ -141,17 +140,16 @@ class Page extends BookChild
         $refreshed = $this->refresh()->unsetRelations()->load(['tags', 'createdBy', 'updatedBy', 'ownedBy']);
         $refreshed->setHidden(array_diff($refreshed->getHidden(), ['html', 'markdown']));
         $refreshed->setAttribute('raw_html', $refreshed->html);
-        $refreshed->html = (new PageContent($refreshed))->render();
+        $refreshed->setAttribute('html', (new PageContent($refreshed))->render());
 
         return $refreshed;
     }
 
     /**
-     * Get a visible page by its book and page slugs.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     * @return HasOne<EntityPageData, $this>
      */
-    public static function getBySlugs(string $bookSlug, string $pageSlug): self
+    public function relatedData(): HasOne
     {
-        return static::visible()->whereSlugs($bookSlug, $pageSlug)->firstOrFail();
+        return $this->hasOne(EntityPageData::class, 'page_id', 'id');
     }
 }

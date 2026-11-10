@@ -2,30 +2,30 @@
 
 namespace BookStack\Entities\Models;
 
+use BookStack\Entities\Tools\EntityDefaultTemplate;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 
 /**
- * Class Chapter.
- *
  * @property Collection<Page> $pages
+ * @property ?int             $default_template_id
  * @property string           $description
+ * @property string           $description_html
  */
-class Chapter extends BookChild
+class Chapter extends BookChild implements HasDescriptionInterface, HasDefaultTemplateInterface
 {
     use HasFactory;
-    use HasHtmlDescription;
+    use ContainerTrait;
 
     public float $searchFactor = 1.2;
-
-    protected $fillable = ['name', 'description', 'priority'];
-    protected $hidden = ['pivot', 'deleted_at', 'description_html'];
+    protected $hidden = ['pivot', 'deleted_at', 'description_html', 'sort_rule_id', 'image_id', 'entity_id', 'entity_type', 'chapter_id'];
+    protected $fillable = ['name', 'priority'];
 
     /**
      * Get the pages that this chapter contains.
      *
-     * @return HasMany<Page>
+     * @return HasMany<Page, $this>
      */
     public function pages(string $dir = 'ASC'): HasMany
     {
@@ -50,6 +50,7 @@ class Chapter extends BookChild
 
     /**
      * Get the visible pages in this chapter.
+     * @return Collection<Page>
      */
     public function getVisiblePages(): Collection
     {
@@ -60,12 +61,8 @@ class Chapter extends BookChild
         ->get();
     }
 
-    /**
-     * Get a visible chapter by its book and page slugs.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
-     */
-    public static function getBySlugs(string $bookSlug, string $chapterSlug): self
+    public function defaultTemplate(): EntityDefaultTemplate
     {
-        return static::visible()->whereSlugs($bookSlug, $chapterSlug)->firstOrFail();
+        return new EntityDefaultTemplate($this);
     }
 }

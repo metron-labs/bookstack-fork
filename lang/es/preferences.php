@@ -23,11 +23,12 @@ return [
     'notifications_desc' => 'Controle las notificaciones por correo electrónico que recibe cuando se realiza cierta actividad dentro del sistema.',
     'notifications_opt_own_page_changes' => 'Notificar sobre los cambios en las páginas en las que soy propietario',
     'notifications_opt_own_page_comments' => 'Notificar sobre comentarios en las páginas en las que soy propietario',
+    'notifications_opt_comment_mentions' => 'Notificarme cuando he sido mencionado en un comentario',
     'notifications_opt_comment_replies' => 'Notificar sobre respuestas a mis comentarios',
     'notifications_save' => 'Guardar preferencias',
     'notifications_update_success' => '¡Se han actualizado las preferencias de notificaciones!',
     'notifications_watched' => 'Elementos vistos e ignorados',
-    'notifications_watched_desc' => ' A continuación se muestran los elementos que tienen preferencias personalizadas de monitorización. Para actualizar sus preferencias, vea el artículo y las opciones se mostrarán en la barra lateral.',
+    'notifications_watched_desc' => 'A continuación se muestran los elementos que tienen preferencias personalizadas de monitorización. Para actualizar sus preferencias, vea el elemento y las opciones se mostrarán en la barra lateral.',
 
     'auth' => 'Acceso y seguridad',
     'auth_change_password' => 'Cambiar contraseña',

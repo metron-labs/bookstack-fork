@@ -5,77 +5,23 @@ namespace BookStack\Entities\Repos;
 use BookStack\Activity\ActivityType;
 use BookStack\Activity\TagRepo;
 use BookStack\Entities\Models\Book;
-use BookStack\Entities\Models\Page;
 use BookStack\Entities\Tools\TrashCan;
 use BookStack\Exceptions\ImageUploadException;
-use BookStack\Exceptions\NotFoundException;
 use BookStack\Facades\Activity;
+use BookStack\Sorting\SortRule;
 use BookStack\Uploads\ImageRepo;
+use BookStack\Util\DatabaseTransaction;
 use Exception;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Collection;
 
 class BookRepo
 {
     public function __construct(
         protected BaseRepo $baseRepo,
         protected TagRepo $tagRepo,
-        protected ImageRepo $imageRepo
+        protected ImageRepo $imageRepo,
+        protected TrashCan $trashCan,
     ) {
-    }
-
-    /**
-     * Get all books in a paginated format.
-     */
-    public function getAllPaginated(int $count = 20, string $sort = 'name', string $order = 'asc'): LengthAwarePaginator
-    {
-        return Book::visible()->with('cover')->orderBy($sort, $order)->paginate($count);
-    }
-
-    /**
-     * Get the books that were most recently viewed by this user.
-     */
-    public function getRecentlyViewed(int $count = 20): Collection
-    {
-        return Book::visible()->withLastView()
-            ->having('last_viewed_at', '>', 0)
-            ->orderBy('last_viewed_at', 'desc')
-            ->take($count)->get();
-    }
-
-    /**
-     * Get the most popular books in the system.
-     */
-    public function getPopular(int $count = 20): Collection
-    {
-        return Book::visible()->withViewCount()
-            ->having('view_count', '>', 0)
-            ->orderBy('view_count', 'desc')
-            ->take($count)->get();
-    }
-
-    /**
-     * Get the most recently created books from the system.
-     */
-    public function getRecentlyCreated(int $count = 20): Collection
-    {
-        return Book::visible()->orderBy('created_at', 'desc')
-            ->take($count)->get();
-    }
-
-    /**
-     * Get a book by its slug.
-     */
-    public function getBySlug(string $slug): Book
-    {
-        $book = Book::visible()->where('slug', '=', $slug)->first();
-
-        if ($book === null) {
-            throw new NotFoundException(trans('errors.book_not_found'));
-        }
-
-        return $book;
     }
 
     /**
@@ -83,13 +29,21 @@ class BookRepo
      */
     public function create(array $input): Book
     {
-        $book = new Book();
-        $this->baseRepo->create($book, $input);
-        $this->baseRepo->updateCoverImage($book, $input['image'] ?? null);
-        $this->updateBookDefaultTemplate($book, intval($input['default_template_id'] ?? null));
-        Activity::add(ActivityType::BOOK_CREATE, $book);
+        return (new DatabaseTransaction(function () use ($input) {
+            $book = $this->baseRepo->create(new Book(), $input);
+            $this->baseRepo->updateCoverImage($book, $input['image'] ?? null);
+            $book->defaultTemplate()->setFromId(intval($input['default_template_id'] ?? null));
+            Activity::add(ActivityType::BOOK_CREATE, $book);
 
-        return $book;
+            $defaultBookSortSetting = intval(setting('sorting-book-default', '0'));
+            if ($defaultBookSortSetting && SortRule::query()->find($defaultBookSortSetting)) {
+                $book->sort_rule_id = $defaultBookSortSetting;
+            }
+
+            $book->save();
+
+            return $book;
+        }))->run();
     }
 
     /**
@@ -97,55 +51,29 @@ class BookRepo
      */
     public function update(Book $book, array $input): Book
     {
-        $this->baseRepo->update($book, $input);
+        $book = $this->baseRepo->update($book, $input);
 
         if (array_key_exists('default_template_id', $input)) {
-            $this->updateBookDefaultTemplate($book, intval($input['default_template_id']));
+            $book->defaultTemplate()->setFromId(intval($input['default_template_id']));
         }
 
         if (array_key_exists('image', $input)) {
             $this->baseRepo->updateCoverImage($book, $input['image'], $input['image'] === null);
         }
 
+        $book->save();
         Activity::add(ActivityType::BOOK_UPDATE, $book);
 
         return $book;
     }
 
     /**
-     * Update the default page template used for this book.
-     * Checks that, if changing, the provided value is a valid template and the user
-     * has visibility of the provided page template id.
-     */
-    protected function updateBookDefaultTemplate(Book $book, int $templateId): void
-    {
-        $changing = $templateId !== intval($book->default_template_id);
-        if (!$changing) {
-            return;
-        }
-
-        if ($templateId === 0) {
-            $book->default_template_id = null;
-            $book->save();
-            return;
-        }
-
-        $templateExists = Page::query()->visible()
-            ->where('template', '=', true)
-            ->where('id', '=', $templateId)
-            ->exists();
-
-        $book->default_template_id = $templateExists ? $templateId : null;
-        $book->save();
-    }
-
-    /**
-     * Update the given book's cover image, or clear it.
+     * Update the given book's cover image or clear it.
      *
      * @throws ImageUploadException
      * @throws Exception
      */
-    public function updateCoverImage(Book $book, ?UploadedFile $coverImage, bool $removeImage = false)
+    public function updateCoverImage(Book $book, ?UploadedFile $coverImage, bool $removeImage = false): void
     {
         $this->baseRepo->updateCoverImage($book, $coverImage, $removeImage);
     }
@@ -155,12 +83,11 @@ class BookRepo
      *
      * @throws Exception
      */
-    public function destroy(Book $book)
+    public function destroy(Book $book): void
     {
-        $trashCan = new TrashCan();
-        $trashCan->softDestroyBook($book);
+        $this->trashCan->softDestroyBook($book);
         Activity::add(ActivityType::BOOK_DELETE, $book);
 
-        $trashCan->autoClearOld();
+        $this->trashCan->autoClearOld();
     }
 }

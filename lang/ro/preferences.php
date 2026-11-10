@@ -23,11 +23,12 @@ return [
     'notifications_desc' => 'Controlați notificările prin e-mail pe care le primiți atunci când o anumită activitate este efectuată în sistem.',
     'notifications_opt_own_page_changes' => 'Notifică la comentarii pe paginile pe care le dețin',
     'notifications_opt_own_page_comments' => 'Notifică la comentarii pe paginile pe care le dețin',
+    'notifications_opt_comment_mentions' => 'Notify when I\'m mentioned in a comment',
     'notifications_opt_comment_replies' => 'Notifică la răspunsurile la comentariile mele',
     'notifications_save' => 'Salvează Preferințe',
     'notifications_update_success' => 'Preferințele de notificare au fost actualizate!',
     'notifications_watched' => 'Articole urmărite și ignorate',
-    'notifications_watched_desc' => ' Mai jos sunt elementele care au fost aplicate preferințe personalizate. Pentru a actualiza preferințele pentru acestea, vizualizați elementul și apoi găsiți opțiunile de ceas în bara laterală.',
+    'notifications_watched_desc' => 'Mai jos sunt elementele care au fost aplicate preferințe personalizate. Pentru a actualiza preferințele pentru acestea, vizualizați elementul și apoi găsiți opțiunile de ceas în bara laterală.',
 
     'auth' => 'Acces & Securitate',
     'auth_change_password' => 'Schimbă Parola',

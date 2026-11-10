@@ -29,10 +29,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{{ setting('app-icon-32') ?: url('/icon-32.png') }}">
 
     <!-- PWA -->
-    <link rel="manifest" href="{{ url('/manifest.json') }}">
+    <link rel="manifest" href="{{ url('/manifest.json') }}" crossorigin="use-credentials">
     <meta name="mobile-web-app-capable" content="yes">
 
-    @yield('head')
+    <!-- OpenSearch -->
+    <link rel="search" type="application/opensearchdescription+xml" title="{{ setting('app-name') }}" href="{{ url('/opensearch.xml') }}">
 
     <!-- Custom Styles & Head Content -->
     @include('layouts.parts.custom-styles')
@@ -67,11 +68,10 @@
         </div>
     </div>
 
-    @yield('bottom')
     @if($cspNonce ?? false)
-        <script src="{{ versioned_asset('dist/app.js') }}" nonce="{{ $cspNonce }}"></script>
+        <script src="{{ versioned_asset('dist/app.js') }}" type="module" nonce="{{ $cspNonce }}"></script>
     @endif
-    @yield('scripts')
+    @stack('body-end')
 
     @include('layouts.parts.base-body-end')
 </body>

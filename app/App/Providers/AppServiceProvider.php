@@ -3,6 +3,7 @@
 namespace BookStack\App\Providers;
 
 use BookStack\Access\SocialDriverManager;
+use BookStack\Activity\Models\Comment;
 use BookStack\Activity\Tools\ActivityLogger;
 use BookStack\Entities\Models\Book;
 use BookStack\Entities\Models\Bookshelf;
@@ -25,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
      * Custom container bindings to register.
      * @var string[]
      */
-    public $bindings = [
+    public array $bindings = [
         ExceptionRenderer::class => BookStackExceptionHandlerPage::class,
     ];
 
@@ -33,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
      * Custom singleton bindings to register.
      * @var string[]
      */
-    public $singletons = [
+    public array $singletons = [
         'activity' => ActivityLogger::class,
         SettingService::class => SettingService::class,
         SocialDriverManager::class => SocialDriverManager::class,
@@ -42,11 +43,19 @@ class AppServiceProvider extends ServiceProvider
     ];
 
     /**
-     * Bootstrap any application services.
-     *
-     * @return void
+     * Register any application services.
      */
-    public function boot()
+    public function register(): void
+    {
+        $this->app->singleton(PermissionApplicator::class, function ($app) {
+            return new PermissionApplicator(null);
+        });
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
     {
         // Set root URL
         $appUrl = config('app.url');
@@ -65,18 +74,7 @@ class AppServiceProvider extends ServiceProvider
             'book'      => Book::class,
             'chapter'   => Chapter::class,
             'page'      => Page::class,
+            'comment'   => Comment::class,
         ]);
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register()
-    {
-        $this->app->singleton(PermissionApplicator::class, function ($app) {
-            return new PermissionApplicator(null);
-        });
     }
 }

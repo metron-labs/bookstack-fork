@@ -32,4 +32,3 @@ webpack-stats.json
 phpstan.neon
 esbuild-meta.json
 .phpactor.json
-/*.zip

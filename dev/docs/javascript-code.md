@@ -137,8 +137,8 @@ window.$events.showValidationErrors(error);
 // Translator
 // Take the given plural text and count to decide on what plural option
 // to use, Similar to laravel's trans_choice function but instead
-// takes the direction directly instead of a translation key.
-window.trans_plural(translationString, count, replacements);
+// takes the translation text directly instead of a translation key.
+window.$trans.choice(translationString, count, replacements);
 
 // Component System
 // Parse and initialise any components from the given root el down.
@@ -161,3 +161,7 @@ window.$components.firstOnElement(element, name);
 There are a range of available events that are emitted as part of a public & supported API for accessing or extending JavaScript libraries & components used in the system.
 
 Details on these events can be found in the [JavaScript Public Events file](javascript-public-events.md).
+
+## WYSIWYG Editor API
+
+Details on the API for our custom-built WYSIWYG editor can be found in the [WYSIWYG JavaScript API file](./wysiwyg-js-api.md).

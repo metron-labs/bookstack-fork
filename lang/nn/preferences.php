@@ -23,11 +23,12 @@ return [
     'notifications_desc' => 'Kontroller e-postvarslene du mottar når en bestemt aktivitet utføres i systemet.',
     'notifications_opt_own_page_changes' => 'Varsle ved endringer til sider jeg eier',
     'notifications_opt_own_page_comments' => 'Varsle om kommentarer på sider jeg eier',
+    'notifications_opt_comment_mentions' => 'Notify when I\'m mentioned in a comment',
     'notifications_opt_comment_replies' => 'Varsle ved svar på mine kommentarer',
     'notifications_save' => 'Lagre innstillinger',
     'notifications_update_success' => 'Varslingsinnstillingene er oppdatert!',
     'notifications_watched' => 'Overvåka & ignorerte elementer',
-    'notifications_watched_desc' => ' Nedenfor er elementene som har egendefinerte varslingsinnstillinger i bruk. For å oppdatere innstillingene for disse, se elementet, finn varslingsalternativene i sidepanelet.',
+    'notifications_watched_desc' => 'Nedenfor er elementene som har egendefinerte varslingsinnstillinger i bruk. For å oppdatere innstillingene for disse, se elementet, finn varslingsalternativene i sidepanelet.',
 
     'auth' => 'Tilgang og tryggleik',
     'auth_change_password' => 'Endre passord',

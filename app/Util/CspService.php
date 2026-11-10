@@ -65,7 +65,7 @@ class CspService
      */
     protected function getScriptSrc(): string
     {
-        if (config('app.allow_content_scripts')) {
+        if ($this->scriptFilteringDisabled()) {
             return '';
         }
 
@@ -108,7 +108,7 @@ class CspService
      */
     protected function getObjectSrc(): string
     {
-        if (config('app.allow_content_scripts')) {
+        if ($this->scriptFilteringDisabled()) {
             return '';
         }
 
@@ -124,6 +124,11 @@ class CspService
         return "base-uri 'self'";
     }
 
+    protected function scriptFilteringDisabled(): bool
+    {
+        return !HtmlContentFilterConfig::fromConfigString(config('app.content_filtering'))->filterOutJavaScript;
+    }
+
     protected function getAllowedIframeHosts(): array
     {
         $hosts = config('app.iframe_hosts') ?? '';
@@ -133,18 +138,30 @@ class CspService
 
     protected function getAllowedIframeSources(): array
     {
-        $sources = config('app.iframe_sources', '');
-        $hosts = array_filter(explode(' ', $sources));
+        $sources = explode(' ', config('app.iframe_sources', ''));
+        $sources[] = $this->getDrawioHost();
 
-        // Extract drawing service url to allow embedding if active
+        return array_filter($sources);
+    }
+
+    /**
+     * Extract the host name of the configured drawio URL for use in CSP.
+     * Returns empty string if not in use.
+     */
+    protected function getDrawioHost(): string
+    {
         $drawioConfigValue = config('services.drawio');
-        if ($drawioConfigValue) {
-            $drawioSource = is_string($drawioConfigValue) ? $drawioConfigValue : 'https://embed.diagrams.net/';
-            $drawioSourceParsed = parse_url($drawioSource);
-            $drawioHost = $drawioSourceParsed['scheme'] . '://' . $drawioSourceParsed['host'];
-            $hosts[] = $drawioHost;
+        if (!$drawioConfigValue) {
+            return '';
         }
 
-        return $hosts;
+        $drawioSource = is_string($drawioConfigValue) ? $drawioConfigValue : 'https://embed.diagrams.net/';
+        $drawioSourceParsed = parse_url($drawioSource);
+        $drawioHost = $drawioSourceParsed['scheme'] . '://' . $drawioSourceParsed['host'];
+        if (isset($drawioSourceParsed['port'])) {
+            $drawioHost .= ':' . $drawioSourceParsed['port'];
+        }
+
+        return $drawioHost;
     }
 }

@@ -10,6 +10,7 @@ return [
 
     // Auth
     'error_user_exists_different_creds' => 'Un usuario con el correo electrónico :email ya existe pero con credenciales diferentes.',
+    'auth_pre_register_theme_prevention' => 'La cuenta de usuario no pudo ser registrada con los detalles proporcionados',
     'email_already_confirmed' => 'El correo electrónico ya ha sido confirmado, intente acceder a la aplicación.',
     'email_confirmation_invalid' => 'Este token de confirmación no es válido o ya ha sido usado, intente registrar uno nuevamente.',
     'email_confirmation_expired' => 'El token de confirmación ha expirado, un nuevo email de confirmacón ha sido enviado.',
@@ -23,7 +24,6 @@ return [
     'saml_invalid_response_id' => 'La solicitud del sistema de autenticación externo no está reconocida por un proceso iniciado por esta aplicación. Navegar hacia atrás después de un inicio de sesión podría causar este problema.',
     'saml_fail_authed' => 'El inicio de sesión con :system falló, el sistema no proporcionó una autorización correcta',
     'oidc_already_logged_in' => 'Ya tenías la sesión iniciada',
-    'oidc_user_not_registered' => 'El usuario :name no está registrado y el registro automático está deshabilitado',
     'oidc_no_email_address' => 'No se pudo encontrar una dirección de correo electrónico, para este usuario, en los datos proporcionados por el sistema de autenticación externo',
     'oidc_fail_authed' => 'El inicio de sesión con :system falló, el sistema no proporcionó una autorización correcta',
     'social_no_action_defined' => 'Acción no definida',
@@ -37,6 +37,7 @@ return [
     'social_driver_not_found' => 'Driver social no encontrado',
     'social_driver_not_configured' => 'Su configuración :socialAccount no es correcta.',
     'invite_token_expired' => 'Este enlace de invitación ha expirado. Puede resetear la contraseña de su cuenta como alternativa.',
+    'login_user_not_found' => 'No se pudo encontrar un usuario para esta acción.',
 
     // System
     'path_not_writable' => 'El fichero no pudo ser subido a la ruta :filePath . Asegúrese de que es escribible por el servidor.',
@@ -77,6 +78,7 @@ return [
     // Users
     'users_cannot_delete_only_admin' => 'No se puede borrar el único administrador',
     'users_cannot_delete_guest' => 'No se puede borrar el usuario invitado',
+    'users_could_not_send_invite' => 'No se pudo crear el usuario porque no se pudo enviar el correo de invitación',
 
     // Roles
     'role_cannot_be_edited' => 'Este rol no puede ser editado',
@@ -103,6 +105,19 @@ return [
     'app_down' => 'La aplicación :appName se encuentra caída en este momento',
     'back_soon' => 'Volverá a estar operativa pronto.',
 
+    // Import
+    'import_zip_cant_read' => 'No se pudo leer el archivo ZIP.',
+    'import_zip_cant_decode_data' => 'No se pudo encontrar y decodificar el archivo data.json. en el archivo ZIP.',
+    'import_zip_no_data' => 'Los datos del archivo ZIP no contienen ningún libro, capítulo o contenido de página.',
+    'import_zip_data_too_large' => 'El contenido del ZIP data.json excede el tamaño máximo de carga configurado.',
+    'import_validation_failed' => 'Error al validar la importación del ZIP con errores:',
+    'import_zip_failed_notification' => 'Error al importar archivo ZIP.',
+    'import_perms_books' => 'Le faltan los permisos necesarios para crear libros.',
+    'import_perms_chapters' => 'Le faltan los permisos necesarios para crear capítulos.',
+    'import_perms_pages' => 'Le faltan los permisos necesarios para crear páginas.',
+    'import_perms_images' => 'Le faltan los permisos necesarios para crear imágenes.',
+    'import_perms_attachments' => 'Le faltan los permisos necesarios para crear adjuntos.',
+
     // API errors
     'api_no_authorization_found' => 'No se encontró ningún token de autorización en la solicitud',
     'api_bad_authorization_format' => 'Se ha encontrado un token de autorización en la solicitud pero el formato era incorrecto',
@@ -110,6 +125,7 @@ return [
     'api_incorrect_token_secret' => 'El secreto proporcionado para el token API usado es incorrecto',
     'api_user_no_api_permission' => 'El propietario del token API usado no tiene permiso para hacer llamadas API',
     'api_user_token_expired' => 'El token de autorización usado ha caducado',
+    'api_cookie_auth_only_get' => 'Only GET requests are allowed when using the API with cookie-based authentication',
 
     // Settings & Maintenance
     'maintenance_test_email_failure' => 'Error al enviar un email de prueba:',

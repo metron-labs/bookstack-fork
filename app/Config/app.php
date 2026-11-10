@@ -9,6 +9,7 @@
  */
 
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\ServiceProvider;
 
 return [
 
@@ -36,10 +37,15 @@ return [
     // The limit for all uploaded files, including images and attachments in MB.
     'upload_limit' => env('FILE_UPLOAD_SIZE_LIMIT', 50),
 
-    // Allow <script> tags to entered within page content.
-    // <script> tags are escaped by default.
-    // Even when overridden the WYSIWYG editor may still escape script content.
-    'allow_content_scripts' => env('ALLOW_CONTENT_SCRIPTS', false),
+    // Control the behaviour of content filtering, primarily used for page content.
+    // This setting is a string of characters which represent different available filters:
+    // - j - Filter out JavaScript and unknown binary data based content
+    // - h - Filter out unexpected, and potentially dangerous, HTML elements
+    // - f - Filter out unexpected form elements
+    // - a - Run content through a more complex allowlist filter
+    // This defaults to using all filters, unless ALLOW_CONTENT_SCRIPTS is set to true in which case no filters are used.
+    // Note: These filters are a best-attempt and may not be 100% effective. They are typically a layer used in addition to other security measures.
+    'content_filtering' => env('APP_CONTENT_FILTERING', env('ALLOW_CONTENT_SCRIPTS', false) === true ? '' : 'jhfa'),
 
     // Allow server-side fetches to be performed to potentially unknown
     // and user-provided locations. Primarily used in exports when loading
@@ -47,8 +53,8 @@ return [
     'allow_untrusted_server_fetching' => env('ALLOW_UNTRUSTED_SERVER_FETCHING', false),
 
     // Override the default behaviour for allowing crawlers to crawl the instance.
-    // May be ignored if view has be overridden or modified.
-    // Defaults to null since, if not set, 'app-public' status used instead.
+    // May be ignored if the underlying view has been overridden or modified.
+    // Defaults to null in which case the 'app-public' status is used instead.
     'allow_robots' => env('ALLOW_ROBOTS', null),
 
     // Application Base URL, Used by laravel in development commands
@@ -69,8 +75,8 @@ return [
     // A list of the sources/hostnames that can be reached by application SSR calls.
     // This is used wherever users can provide URLs/hosts in-platform, like for webhooks.
     // Host-specific functionality (usually controlled via other options) like auth
-    // or user avatars for example, won't use this list.
-    // Space seperated if multiple. Can use '*' as a wildcard.
+    // or user avatars, for example, won't use this list.
+    // Space separated if multiple. Can use '*' as a wildcard.
     // Values will be compared prefix-matched, case-insensitive, against called SSR urls.
     // Defaults to allow all hosts.
     'ssr_hosts' => env('ALLOWED_SSR_HOSTS', '*'),
@@ -79,8 +85,10 @@ return [
     // Integer value between 0 (IP hidden) to 4 (Full IP usage)
     'ip_address_precision' => env('IP_ADDRESS_PRECISION', 4),
 
-    // Application timezone for back-end date functions.
+    // Application timezone for stored date/time values.
     'timezone' => env('APP_TIMEZONE', 'UTC'),
+    // Application timezone for displayed date/time values in the UI.
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', env('APP_TIMEZONE', 'UTC')),
 
     // Default locale to use
     // A default variant is also stored since Laravel can overwrite
@@ -113,46 +121,20 @@ return [
     ],
 
     // Application Service Providers
-    'providers' => [
-
-        // Laravel Framework Service Providers...
-        Illuminate\Auth\AuthServiceProvider::class,
-        Illuminate\Broadcasting\BroadcastServiceProvider::class,
-        Illuminate\Bus\BusServiceProvider::class,
-        Illuminate\Cache\CacheServiceProvider::class,
-        Illuminate\Foundation\Providers\ConsoleSupportServiceProvider::class,
-        Illuminate\Cookie\CookieServiceProvider::class,
-        Illuminate\Database\DatabaseServiceProvider::class,
-        Illuminate\Encryption\EncryptionServiceProvider::class,
-        Illuminate\Filesystem\FilesystemServiceProvider::class,
-        Illuminate\Foundation\Providers\FoundationServiceProvider::class,
-        Illuminate\Hashing\HashServiceProvider::class,
-        Illuminate\Mail\MailServiceProvider::class,
-        Illuminate\Notifications\NotificationServiceProvider::class,
-        Illuminate\Pagination\PaginationServiceProvider::class,
-        Illuminate\Pipeline\PipelineServiceProvider::class,
-        Illuminate\Queue\QueueServiceProvider::class,
-        Illuminate\Redis\RedisServiceProvider::class,
-        Illuminate\Auth\Passwords\PasswordResetServiceProvider::class,
-        Illuminate\Session\SessionServiceProvider::class,
-        Illuminate\Validation\ValidationServiceProvider::class,
-        Illuminate\View\ViewServiceProvider::class,
-
+    'providers' => ServiceProvider::defaultProviders()->merge([
         // Third party service providers
-        Barryvdh\DomPDF\ServiceProvider::class,
-        Barryvdh\Snappy\ServiceProvider::class,
         SocialiteProviders\Manager\ServiceProvider::class,
 
         // BookStack custom service providers
-        \BookStack\App\Providers\ThemeServiceProvider::class,
-        \BookStack\App\Providers\AppServiceProvider::class,
-        \BookStack\App\Providers\AuthServiceProvider::class,
-        \BookStack\App\Providers\EventServiceProvider::class,
-        \BookStack\App\Providers\RouteServiceProvider::class,
-        \BookStack\App\Providers\TranslationServiceProvider::class,
-        \BookStack\App\Providers\ValidationRuleServiceProvider::class,
-        \BookStack\App\Providers\ViewTweaksServiceProvider::class,
-    ],
+        BookStack\App\Providers\ThemeServiceProvider::class,
+        BookStack\App\Providers\AppServiceProvider::class,
+        BookStack\App\Providers\AuthServiceProvider::class,
+        BookStack\App\Providers\EventServiceProvider::class,
+        BookStack\App\Providers\RouteServiceProvider::class,
+        BookStack\App\Providers\TranslationServiceProvider::class,
+        BookStack\App\Providers\ValidationRuleServiceProvider::class,
+        BookStack\App\Providers\ViewTweaksServiceProvider::class,
+    ])->toArray(),
 
     // Class Aliases
     // This array of class aliases to be registered on application start.

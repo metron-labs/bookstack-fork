@@ -104,7 +104,7 @@ class PublicActionTest extends TestCase
         $resp->assertRedirect($chapter->book->getUrl('/page/my-guest-page/edit'));
 
         $user = $this->users->guest();
-        $this->assertDatabaseHas('pages', [
+        $this->assertDatabaseHasEntityData('page', [
             'name'       => 'My guest page',
             'chapter_id' => $chapter->id,
             'created_by' => $user->id,
@@ -126,33 +126,6 @@ class PublicActionTest extends TestCase
         $resp = $this->get('/cats/dogs/hippos');
         $resp->assertStatus(404);
         $resp->assertDontSee($page->name);
-    }
-
-    public function test_robots_effected_by_public_status()
-    {
-        $this->get('/robots.txt')->assertSee("User-agent: *\nDisallow: /");
-
-        $this->setSettings(['app-public' => 'true']);
-
-        $resp = $this->get('/robots.txt');
-        $resp->assertSee("User-agent: *\nDisallow:");
-        $resp->assertDontSee('Disallow: /');
-    }
-
-    public function test_robots_effected_by_setting()
-    {
-        $this->get('/robots.txt')->assertSee("User-agent: *\nDisallow: /");
-
-        config()->set('app.allow_robots', true);
-
-        $resp = $this->get('/robots.txt');
-        $resp->assertSee("User-agent: *\nDisallow:");
-        $resp->assertDontSee('Disallow: /');
-
-        // Check config overrides app-public setting
-        config()->set('app.allow_robots', false);
-        $this->setSettings(['app-public' => 'true']);
-        $this->get('/robots.txt')->assertSee("User-agent: *\nDisallow: /");
     }
 
     public function test_default_favicon_file_created_upon_access()

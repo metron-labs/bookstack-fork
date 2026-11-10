@@ -6,11 +6,13 @@ return [
 
     'new_comment_subject' => 'New comment on page: :pageName',
     'new_comment_intro' => 'A user has commented on a page in :appName:',
-    'new_page_subject' => 'New page: :pageName',
+    'new_page_subject' => 'Yeni sayfa :pageName',
     'new_page_intro' => 'A new page has been created in :appName:',
     'updated_page_subject' => 'Updated page: :pageName',
     'updated_page_intro' => 'A page has been updated in :appName:',
     'updated_page_debounce' => 'To prevent a mass of notifications, for a while you won\'t be sent notifications for further edits to this page by the same editor.',
+    'comment_mention_subject' => 'You have been mentioned in a comment on page: :pageName',
+    'comment_mention_intro' => 'You were mentioned in a comment on :appName:',
 
     'detail_page_name' => 'Page Name:',
     'detail_page_path' => 'Page Path:',
